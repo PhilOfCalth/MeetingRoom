@@ -1,21 +1,29 @@
 package phil.tools.meetingroom
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.database.Cursor
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.provider.CalendarContract
 import android.util.Log
+import android.view.Gravity
 import android.view.View
 import android.widget.TableRow
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.android.synthetic.main.activity_main.*
 import java.util.*
+import kotlin.collections.HashMap
 
 
 class MainActivity : AppCompatActivity() {
@@ -32,7 +40,15 @@ class MainActivity : AppCompatActivity() {
         CalendarContract.Events.ORGANIZER                   // 7
     )
 
+    private val rowMetaData = HashMap<Int, Pair<String, String>>()
+
     private val rowLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT)
+    private val buttonLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT)
+
+    init {
+        buttonLp.setMargins(2, 2, 2, 2)
+        buttonLp.gravity = Gravity.RIGHT
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,23 +97,54 @@ class MainActivity : AppCompatActivity() {
             val text =
                 "$displayName, calId:$calId, startDate:$startDate, ownerName:$ownerName, accountName: $accountName, organiser:$organiser";
 
-            addItem(calId, text)
+            addItem(calId, displayName, organiser)
         }
     }
 
-    fun addItem(id: Int, content: String){
+    private fun addItem(id: Int, subject: String, organiser: String){
+
+        rowMetaData.put(id, Pair(organiser, subject))
+
         val row = TableRow(this)
         row.layoutParams = rowLp
         val tv = TextView(this)
-        tv.text = content
+        tv.text = subject
         row.id = id
         row.addView(tv)
+
+        addButton(id, Color.GREEN, row, "Good")
+        addButton(id, Color.YELLOW, row, "OK")
+        addButton(id, Color.RED, row, "Bad")
+
         Cal_Table.addView(row)
     }
 
-    fun deleteItem(v: View){
-        val lastIndex = Cal_Table.childCount - 1
-        Cal_Table.removeViewAt(lastIndex);
+    private fun addButton(id: Int, colour: Int, row: TableRow, feedback: String) {
+        val button = FloatingActionButton(this)
+        button.layoutParams = buttonLp
+        button.setOnClickListener { view -> sendFeedback(view.parent as View, feedback) }
+        button.backgroundTintList = ColorStateList.valueOf(colour)
+
+        row.addView(button)
+    }
+
+
+    private fun sendFeedback(row: View, feedback: String){
+
+        val metaData = rowMetaData[row.id]
+
+        intent = Intent(Intent.ACTION_SEND);
+        intent.setType("message/rfc822");
+        intent.putExtra(Intent.EXTRA_EMAIL  , arrayOf(metaData?.first));
+        intent.putExtra(Intent.EXTRA_SUBJECT, "Meeting Feedback - ${metaData?.second}");
+        intent.putExtra(Intent.EXTRA_TEXT   , feedback);
+        try {
+            startActivity(Intent.createChooser(intent, "Send mail..."));
+        } catch (ex: ActivityNotFoundException) {
+            Toast.makeText(this, "There are no email clients installed.",Toast.LENGTH_SHORT).show();
+        }
+
+        Cal_Table.removeView(row);
     }
 
     private fun checkPermissions(callbackId: Int, vararg permissionsId: String) {
