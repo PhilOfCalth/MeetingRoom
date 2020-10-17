@@ -5,13 +5,14 @@ import java.util.*
 import javax.activation.DataHandler
 import javax.mail.*
 import javax.mail.internet.InternetAddress
+import javax.mail.internet.MimeBodyPart
 import javax.mail.internet.MimeMessage
+import javax.mail.internet.MimeMultipart
 import javax.mail.util.ByteArrayDataSource
 
-class GMailSender(user:String, password:String): Authenticator() {
+class GMailSender(): Authenticator() {
 
     private val mailhost = "smtp.gmail.com"
-    private val user:String = user
     private val password:String = password
     private var session: Session
 
@@ -31,16 +32,15 @@ class GMailSender(user:String, password:String): Authenticator() {
     }
 
     protected override fun getPasswordAuthentication(): PasswordAuthentication {
-        return PasswordAuthentication(user, password)
+        return PasswordAuthentication("PhilipLarkin8383@gmail.com", password)
     }
 
     @Synchronized fun sendEmail(subject:String, body:String, recipient:String){
 
         val message = MimeMessage(session);
-        val handler = DataHandler( ByteArrayDataSource(body.byteInputStream(), "text/plain"));
-        message.sender = InternetAddress("MeetingRoomFeedback@gmail.com");
+        message.sender = InternetAddress("PhilipLarkin8383@gmail.com");
         message.subject = subject;
-        message.dataHandler = handler;
+        message.setText(body);
 
         message.setRecipient(Message.RecipientType.TO, InternetAddress(recipient));
         Transport.send(message);
