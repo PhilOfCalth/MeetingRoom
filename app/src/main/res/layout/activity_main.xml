@@ -5,6 +5,7 @@
     android:id="@+id/home_view"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/row_background"
     tools:context=".MainActivity">
 
     <com.google.android.material.appbar.AppBarLayout
@@ -18,7 +19,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:layout_gravity="bottom|start"
-            android:background="?attr/colorPrimary"
+            android:background="#2C2C2C"
             app:popupTheme="@style/AppTheme.PopupOverlay"
             app:title="Meeting Feedback" />
 

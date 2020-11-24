@@ -1,7 +1,6 @@
 package phil.tools.meetingroom
 
 import android.Manifest
-import android.content.DialogInterface
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.graphics.Color
@@ -24,6 +23,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import androidx.core.graphics.drawable.DrawableCompat
 import kotlinx.android.synthetic.main.activity_main.*
+import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.collections.HashMap
 
@@ -53,10 +53,10 @@ class MainActivity : AppCompatActivity() {
 
     init {
         rowLp.gravity = Gravity.CENTER_VERTICAL
-        textLp.setMargins(20, 8, 0, 0)
+        textLp.setMargins(20, 20, 0, 0)
         textLp.weight = 5f
         textLp.gravity = Gravity.CENTER_VERTICAL
-        buttonLp.setMargins(8, 3, 8, 3)
+        buttonLp.setMargins(15, 15, 15, 15)
         buttonLp.weight = 1f
     }
 
@@ -110,14 +110,14 @@ class MainActivity : AppCompatActivity() {
             val accountName = cur.getString(1)
             val displayName = cur.getString(2)
             val ownerName = cur.getString(3)
-            val startDate = cur.getString(5)
+            val startDate = cur.getLong(5)
             val organiser = cur.getString(7)
             // Do something with the values...
             Log.d(this.localClassName, "found an event $displayName");
             val text =
                 "$displayName, calId:$calId, startDate:$startDate, ownerName:$ownerName, accountName: $accountName, organiser:$organiser";
 
-            addItem(calId, displayName, startDate, organiser)
+            addItem(calId, displayName, formatDate(startDate), organiser)
         }
     }
 
@@ -156,10 +156,9 @@ class MainActivity : AppCompatActivity() {
 
         val metaData = rowMetaData[row.id]
 
-        val alert = AlertDialog.Builder(this);
-        alert.setTitle("Feedback Message (Optional)");
-
-        val input = EditText(this);
+        val alert = AlertDialog.Builder(this)
+        alert.setTitle("${rating.capitalize()} Feedback Message\n(optional)")
+        val input = EditText(this)
         alert.setView(input);
 
         alert.setPositiveButton("Send") { _, _ ->
@@ -194,4 +193,14 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, permissionsId, callbackId)
     }
 
+}
+
+fun formatDate(milliSeconds: Long): String {
+    // Create a DateFormatter object for displaying date in specified format.
+    val formatter = SimpleDateFormat("dd/MM/yyyy hh:mm")
+
+    // Create a calendar object that will convert the date and time value in milliseconds to date.
+    val calendar = Calendar.getInstance()
+    calendar.timeInMillis = milliSeconds
+    return formatter.format(calendar.time)
 }
