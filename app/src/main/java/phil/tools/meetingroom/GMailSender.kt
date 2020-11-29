@@ -70,9 +70,9 @@ class GMailSender(context: Context): Authenticator() {
     @Synchronized fun sendEmail(subject:String, body:String, recipient:String?){
 
         val message = MimeMessage(session)
-        message.sender = InternetAddress("PhilipLarkin8383@gmail.com")
+        message.sender = InternetAddress("PhilipLarkin8383@gmail.com", "Meeting Feedback App")
         message.subject = subject
-        message.setText(body)
+        message.setContent(body, "text/html")
 
         var sendTo:String? = recipient
         if(null == sendTo){

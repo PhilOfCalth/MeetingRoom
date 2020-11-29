@@ -8,6 +8,7 @@ import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.CalendarContract
+import android.text.Html
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -28,6 +29,18 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 val CAL_STATE_KEY = "MeetingRoomCalendarState"
+val EMAIL_FORMAT =
+"""<table width="100%%"><tr>
+  <td width="50%%">%s</td>
+  <td width="50%%" style="vertical-align: inherit;">
+    <span style="height: 100px;
+                 width: 100px;
+                 background-color: %s;
+                 border-radius: 50%%;
+                 display: inline-block;" />
+  </td>
+</td></table>"""
+val RATING_COLOUR_MAP = mapOf("positive" to "GREEN", "neutral" to "DARKORANGE", "negative" to "RED")
 
 class MainActivity : AppCompatActivity() {
 
@@ -45,7 +58,7 @@ class MainActivity : AppCompatActivity() {
 
     private var tableMetaData = LinkedHashMap<Int, RowMetaData>()
     private lateinit var emailClient:GMailSender
-    private val rowLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, TableRow.LayoutParams.WRAP_CONTENT)
+    private val rowLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, 150)
     private val textLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, TableRow.LayoutParams.MATCH_PARENT)
     private val buttonLp = TableRow.LayoutParams(100, 140)
 
@@ -161,11 +174,11 @@ class MainActivity : AppCompatActivity() {
         row.id = id
         row.addView(tv)
 
-        if(account != organiser) {
+//        if(account != organiser) {
             addButton(greenCircle, row, "positive")
             addButton(yellowCircle, row, "neutral")
             addButton(redCircle, row, "negative")
-        }
+//        }
 
         Cal_Table.addView(row)
     }
@@ -191,16 +204,22 @@ class MainActivity : AppCompatActivity() {
 
         alert.setPositiveButton("Send") { _, _ ->
             run {
-                val feedbackMessage = input.text.toString()
-                var feedback = "You received $rating feedback"
+                val feedbackColour = RATING_COLOUR_MAP[rating]
+                val feedbackMessage = stripHtml(
+                        input.text
+                                .toString()
+                                .replace("\n", "\\n"))
+                        .replace("\\n","<br />")
+                var feedback = "<u><b>You received <span style=\"color:${feedbackColour} \">$rating</span> feedback<b></u>"
 
                 if("" != feedbackMessage){
-                    feedback = "$feedback \n\nMessage:\n$feedbackMessage"
+                    feedback = "$feedback <br /><br /><b>Message</b>:<br />$feedbackMessage"
                 }
 
+                val htmlContent = String.format(EMAIL_FORMAT, feedback, feedbackColour)
                 if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_NETWORK_STATE) == PackageManager.PERMISSION_GRANTED
                         && ContextCompat.checkSelfPermission(this, android.Manifest.permission.INTERNET) == PackageManager.PERMISSION_GRANTED) {
-                    emailClient.sendEmail("Meeting Feedback - ${metaData?.first}", feedback, metaData?.second)
+                    emailClient.sendEmail("Meeting Feedback - ${metaData?.description}", htmlContent, metaData?.organiser)
                 }
                 Cal_Table.removeView(row)
                 tableMetaData.remove(row.id)
@@ -231,6 +250,14 @@ fun formatDate(milliSeconds: Long): String {
     val calendar = Calendar.getInstance()
     calendar.timeInMillis = milliSeconds
     return formatter.format(calendar.time)
+}
+
+fun stripHtml(html:String): String {
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+        return Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY).toString()
+    } else {
+        return Html.fromHtml(html).toString()
+    }
 }
 
 data class RowMetaData(val description : String, val organiser: String, val account:String): Serializable
