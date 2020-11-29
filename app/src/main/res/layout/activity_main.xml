@@ -11,7 +11,7 @@
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:theme="@style/AppTheme.AppBarOverlay">
 
         <androidx.appcompat.widget.Toolbar
@@ -23,11 +23,20 @@
             app:popupTheme="@style/AppTheme.PopupOverlay"
             app:title="Meeting Feedback" />
 
-        <TableLayout
-            android:id="@+id/Cal_Table"
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/pullToRefresh"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#FFFFFF" />
+            >
+
+<!--            () -> viewModel.onRefresh()-->
+
+            <TableLayout
+                android:id="@+id/Cal_Table"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@android:color/background_dark" />
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     </com.google.android.material.appbar.AppBarLayout>
 

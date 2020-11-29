@@ -23,9 +23,11 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import androidx.core.graphics.drawable.DrawableCompat
 import kotlinx.android.synthetic.main.activity_main.*
+import java.io.Serializable
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.collections.HashMap
+
+val CAL_STATE_KEY = "MeetingRoomCalendarState"
 
 class MainActivity : AppCompatActivity() {
 
@@ -41,15 +43,15 @@ class MainActivity : AppCompatActivity() {
         CalendarContract.Events.ORGANIZER                   // 7
     )
 
-    private val rowMetaData = HashMap<Int, Pair<String, String>>()
+    private var tableMetaData = LinkedHashMap<Int, RowMetaData>()
     private lateinit var emailClient:GMailSender
     private val rowLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, TableRow.LayoutParams.WRAP_CONTENT)
     private val textLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, TableRow.LayoutParams.MATCH_PARENT)
     private val buttonLp = TableRow.LayoutParams(100, 140)
 
-    private lateinit var greenCircle:Drawable;
-    private lateinit var yellowCircle:Drawable;
-    private lateinit var redCircle:Drawable;
+    private lateinit var greenCircle:Drawable
+    private lateinit var yellowCircle:Drawable
+    private lateinit var redCircle:Drawable
 
     init {
         rowLp.gravity = Gravity.CENTER_VERTICAL
@@ -63,81 +65,107 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val unwrappedDrawable = AppCompatResources.getDrawable(this, R.drawable.circle);
-        greenCircle = DrawableCompat.wrap(unwrappedDrawable!!.constantState?.newDrawable()!!);
-        DrawableCompat.setTint(greenCircle, Color.GREEN);
-        yellowCircle = DrawableCompat.wrap(unwrappedDrawable!!.constantState?.newDrawable()!!);
-        DrawableCompat.setTint(yellowCircle, Color.YELLOW);
-        redCircle = DrawableCompat.wrap(unwrappedDrawable!!.constantState?.newDrawable()!!);
-        DrawableCompat.setTint(redCircle, Color.RED);
+        val unwrappedDrawable = AppCompatResources.getDrawable(this, R.drawable.circle)
+        greenCircle = DrawableCompat.wrap(unwrappedDrawable!!.constantState?.newDrawable()!!)
+        DrawableCompat.setTint(greenCircle, Color.GREEN)
+        yellowCircle = DrawableCompat.wrap(unwrappedDrawable!!.constantState?.newDrawable()!!)
+        DrawableCompat.setTint(yellowCircle, Color.YELLOW)
+        redCircle = DrawableCompat.wrap(unwrappedDrawable!!.constantState?.newDrawable()!!)
+        DrawableCompat.setTint(redCircle, Color.RED)
 
         emailClient = GMailSender(this)
 
         setContentView(R.layout.activity_main)
         setSupportActionBar(findViewById(R.id.toolbar))
 
-        val callbackId = 42;
-        Log.d(this.localClassName, "0 asking for permission ");
-        checkPermissions(callbackId, Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR);
-        Log.d(this.localClassName, "Checking for permission ");
-        if (ContextCompat.checkSelfPermission( this, android.Manifest.permission.READ_CALENDAR ) == PackageManager.PERMISSION_GRANTED ) {
+        pullToRefresh.setOnRefreshListener(this::populateCalendarTable)
+
+        if ( savedInstanceState?.containsKey(CAL_STATE_KEY) != true ) {
             populateCalendarTable()
         }
     }
 
-    private fun populateCalendarTable(){
-        val cal = Calendar.getInstance()
-        val endTimestamp = cal.timeInMillis
+    // invoked when the activity may be temporarily destroyed, save the instance state here
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.run {
+            putSerializable(CAL_STATE_KEY, tableMetaData)
+        }
+        super.onSaveInstanceState(outState)
+    }
 
-        val startTimestamp = endTimestamp - 1209600000 // 2 weeks
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        tableMetaData = savedInstanceState.getSerializable(CAL_STATE_KEY) as LinkedHashMap<Int, RowMetaData>
 
-        val uri: Uri = CalendarContract.Events.CONTENT_URI
-        val selection =
-            "(( " + CalendarContract.Events.DTSTART + " >= " + startTimestamp + " ) AND ( " + CalendarContract.Events.DTSTART + " <= " + endTimestamp + " ) AND ( deleted != 1 ))"
-//            val selection = "((${CalendarContract.Events.DTSTART} > ?) AND (" +
-//                    "${CalendarContract.Events.DTSTART} < ?)"
-        val selectionArgs =
-            arrayOf(startTimestamp.toString(), endTimestamp.toString())
-        val cur: Cursor? =
-            contentResolver.query(uri, EVENT_PROJECTION, selection, null, null)
-        Log.d(
-            this.localClassName,
-            "searched ($startTimestamp, $endTimestamp) ${cur?.count}"
-        );
-        while (true == cur?.moveToNext()) {
-            // Get the field values
-            val calId = cur.getInt(0)
-            val accountName = cur.getString(1)
-            val displayName = cur.getString(2)
-            val ownerName = cur.getString(3)
-            val startDate = cur.getLong(5)
-            val organiser = cur.getString(7)
-            // Do something with the values...
-            Log.d(this.localClassName, "found an event $displayName");
-            val text =
-                "$displayName, calId:$calId, startDate:$startDate, ownerName:$ownerName, accountName: $accountName, organiser:$organiser";
-
-            addItem(calId, displayName, formatDate(startDate), organiser)
+        for(key in tableMetaData.keys){
+            val rowMetaData = tableMetaData[key]
+            addItem(key, rowMetaData!!.description, rowMetaData.organiser, rowMetaData.account)
         }
     }
 
-    private fun addItem(id: Int, subject: String, startDate:String, organiser: String){
+    private fun populateCalendarTable(){
 
-        rowMetaData.put(id, Pair(organiser, subject))
+        val callbackId = 42
+        Log.d(this.localClassName, "0 asking for permission ")
+        checkPermissions(callbackId, Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
+        Log.d(this.localClassName, "Checking for permission ")
+
+        if(ContextCompat.checkSelfPermission( this, android.Manifest.permission.READ_CALENDAR ) == PackageManager.PERMISSION_GRANTED ) {
+            val cal = Calendar.getInstance()
+            val endTimestamp = cal.timeInMillis
+
+            val startTimestamp = endTimestamp - 1209600000 // 2 weeks
+
+            val uri: Uri = CalendarContract.Events.CONTENT_URI
+            val selection =
+                "(( " + CalendarContract.Events.DTSTART + " >= " + startTimestamp + " ) AND ( " + CalendarContract.Events.DTSTART + " <= " + endTimestamp + " ) AND ( deleted != 1 ))"
+            //            val selection = "((${CalendarContract.Events.DTSTART} > ?) AND (" +
+            //                    "${CalendarContract.Events.DTSTART} < ?)"
+            val selectionArgs =
+                arrayOf(startTimestamp.toString(), endTimestamp.toString())
+            val cur: Cursor? =
+                contentResolver.query(uri, EVENT_PROJECTION, selection, null, null)
+            Log.d(
+                this.localClassName,
+                "searched ($startTimestamp, $endTimestamp) ${cur?.count}"
+            )
+            while (true == cur?.moveToNext()) {
+                // Get the field values
+                val calId = cur.getInt(0)
+                val account = cur.getString(1)
+                val displayName = cur.getString(2)
+                val ownerName = cur.getString(3)
+                val startDate = cur.getLong(5)
+                val organiser = cur.getString(7)
+                // Do something with the values...
+                Log.d(this.localClassName, "found an event $displayName")
+                val text =
+                    "$displayName, calId:$calId, startDate:$startDate, ownerName:$ownerName, accountName: $account, organiser:$organiser"
+
+                val description = "$displayName\n ${formatDate(startDate)}"
+                tableMetaData.put(calId, RowMetaData(description, organiser, account))
+
+                addItem(calId, description, organiser, account)
+            }
+        }
+    }
+
+    private fun addItem(id: Int, description: String, organiser: String, account: String){
 
         val row = TableRow(this)
         row.layoutParams = rowLp
         row.setBackgroundResource(R.drawable.row_background)
         val tv = TextView(this)
-        tv.text = "$subject\n $startDate"
+        tv.text = description
         tv.setTextColor(Color.WHITE)
         tv.layoutParams = textLp
         row.id = id
         row.addView(tv)
 
-        addButton(greenCircle, row, "positive")
-        addButton(yellowCircle, row, "neutral")
-        addButton(redCircle, row, "negative")
+        if(account != organiser) {
+            addButton(greenCircle, row, "positive")
+            addButton(yellowCircle, row, "neutral")
+            addButton(redCircle, row, "negative")
+        }
 
         Cal_Table.addView(row)
     }
@@ -154,12 +182,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendFeedback(row: View, rating: String){
 
-        val metaData = rowMetaData[row.id]
+        val metaData = tableMetaData[row.id]
 
         val alert = AlertDialog.Builder(this)
         alert.setTitle("${rating.capitalize()} Feedback Message\n(optional)")
         val input = EditText(this)
-        alert.setView(input);
+        alert.setView(input)
 
         alert.setPositiveButton("Send") { _, _ ->
             run {
@@ -172,15 +200,15 @@ class MainActivity : AppCompatActivity() {
 
                 if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_NETWORK_STATE) == PackageManager.PERMISSION_GRANTED
                         && ContextCompat.checkSelfPermission(this, android.Manifest.permission.INTERNET) == PackageManager.PERMISSION_GRANTED) {
-                    emailClient.sendEmail("Meeting Feedback - ${metaData?.second}", feedback, metaData?.first)
+                    emailClient.sendEmail("Meeting Feedback - ${metaData?.first}", feedback, metaData?.second)
                 }
-                Cal_Table.removeView(row);
+                Cal_Table.removeView(row)
+                tableMetaData.remove(row.id)
             }
         }
 
         alert.setNegativeButton("Cancel", null)
-
-        alert.show();
+        alert.show()
     }
 
     private fun checkPermissions(callbackId: Int, vararg permissionsId: String) {
@@ -204,3 +232,5 @@ fun formatDate(milliSeconds: Long): String {
     calendar.timeInMillis = milliSeconds
     return formatter.format(calendar.time)
 }
+
+data class RowMetaData(val description : String, val organiser: String, val account:String): Serializable
