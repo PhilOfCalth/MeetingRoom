@@ -41,6 +41,7 @@ import javax.xml.parsers.SAXParserFactory
 class GMailSender(context: Context): Authenticator() {
 
     private val mailhost = "smtp.gmail.com"
+    private val fromEmail:String
     private val password:String
     private var session: Session
 
@@ -48,6 +49,7 @@ class GMailSender(context: Context): Authenticator() {
         val config = context.resources.openRawResource(R.raw.config)
         val configProperties = Properties()
         configProperties.load(config)
+        fromEmail = configProperties.getProperty("email")
         password = configProperties.getProperty("email_password")
 
         val emailProps = Properties()
@@ -70,13 +72,13 @@ class GMailSender(context: Context): Authenticator() {
     @Synchronized fun sendEmail(subject:String, body:String, recipient:String?){
 
         val message = MimeMessage(session)
-        message.sender = InternetAddress("PhilipLarkin8383@gmail.com", "Meeting Feedback App")
+        message.sender = InternetAddress(fromEmail, "Meeting Feedback App")
         message.subject = subject
         message.setContent(body, "text/html")
 
         var sendTo:String? = recipient
         if(null == sendTo){
-            sendTo = "philipmahem@gmail.com"
+            sendTo = fromEmail
         }
 
         message.setRecipient(Message.RecipientType.TO, InternetAddress(sendTo))

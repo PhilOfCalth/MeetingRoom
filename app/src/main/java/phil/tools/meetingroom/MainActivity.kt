@@ -1,6 +1,7 @@
 package phil.tools.meetingroom
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.graphics.Color
@@ -28,8 +29,8 @@ import java.io.Serializable
 import java.text.SimpleDateFormat
 import java.util.*
 
-val CAL_STATE_KEY = "MeetingRoomCalendarState"
-val EMAIL_FORMAT =
+private const val CAL_STATE_KEY = "MeetingRoomCalendarState"
+private const val EMAIL_FORMAT =
 """<table width="100%%"><tr>
   <td width="50%%">%s</td>
   <td width="50%%" style="vertical-align: inherit;">
@@ -40,12 +41,10 @@ val EMAIL_FORMAT =
                  display: inline-block;" />
   </td>
 </td></table>"""
-val RATING_COLOUR_MAP = mapOf("positive" to "GREEN", "neutral" to "DARKORANGE", "negative" to "RED")
-
-class MainActivity : AppCompatActivity() {
+private val RATING_COLOUR_MAP = mapOf("positive" to "GREEN", "neutral" to "DARKORANGE", "negative" to "RED")
 
 
-    private val EVENT_PROJECTION: Array<String> = arrayOf(
+private val EVENT_PROJECTION: Array<String> = arrayOf(
         CalendarContract.Calendars._ID,                     // 0
         CalendarContract.Calendars.ACCOUNT_NAME,            // 1
         CalendarContract.Events.TITLE,                      // 2
@@ -54,8 +53,11 @@ class MainActivity : AppCompatActivity() {
         CalendarContract.Events.DTSTART,                    // 5
         CalendarContract.Events.DTEND,                      // 6
         CalendarContract.Events.ORGANIZER                   // 7
-    )
+)
 
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var interestedInEmail:String
     private var tableMetaData = LinkedHashMap<Int, RowMetaData>()
     private lateinit var emailClient:GMailSender
     private val rowLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, 150)
@@ -78,12 +80,18 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+
+        val config = this.resources.openRawResource(R.raw.config)
+        val configProperties = Properties()
+        configProperties.load(config)
+        interestedInEmail = configProperties.getProperty("interested_in_email")
+
         val unwrappedDrawable = AppCompatResources.getDrawable(this, R.drawable.circle)
         greenCircle = DrawableCompat.wrap(unwrappedDrawable!!.constantState?.newDrawable()!!)
         DrawableCompat.setTint(greenCircle, Color.GREEN)
-        yellowCircle = DrawableCompat.wrap(unwrappedDrawable!!.constantState?.newDrawable()!!)
+        yellowCircle = DrawableCompat.wrap(unwrappedDrawable.constantState?.newDrawable()!!)
         DrawableCompat.setTint(yellowCircle, Color.YELLOW)
-        redCircle = DrawableCompat.wrap(unwrappedDrawable!!.constantState?.newDrawable()!!)
+        redCircle = DrawableCompat.wrap(unwrappedDrawable.constantState?.newDrawable()!!)
         DrawableCompat.setTint(redCircle, Color.RED)
 
         emailClient = GMailSender(this)
@@ -122,21 +130,22 @@ class MainActivity : AppCompatActivity() {
         checkPermissions(callbackId, Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
         Log.d(this.localClassName, "Checking for permission ")
 
-        if(ContextCompat.checkSelfPermission( this, android.Manifest.permission.READ_CALENDAR ) == PackageManager.PERMISSION_GRANTED ) {
+        if(ContextCompat.checkSelfPermission( this, Manifest.permission.READ_CALENDAR ) == PackageManager.PERMISSION_GRANTED ) {
             val cal = Calendar.getInstance()
             val endTimestamp = cal.timeInMillis
 
             val startTimestamp = endTimestamp - 1209600000 // 2 weeks
 
             val uri: Uri = CalendarContract.Events.CONTENT_URI
-            val selection =
-                "(( " + CalendarContract.Events.DTSTART + " >= " + startTimestamp + " ) AND ( " + CalendarContract.Events.DTSTART + " <= " + endTimestamp + " ) AND ( deleted != 1 ))"
-            //            val selection = "((${CalendarContract.Events.DTSTART} > ?) AND (" +
-            //                    "${CalendarContract.Events.DTSTART} < ?)"
+//            val selection =
+//                "(( " + CalendarContract.Events.DTSTART + " >= " + startTimestamp + " ) AND ( " + CalendarContract.Events.DTSTART + " <= " + endTimestamp + " ) AND ( deleted != 1 ))"
+            val selection = "${CalendarContract.Events.DTSTART} >= ? AND " +
+                    "${CalendarContract.Events.DTSTART} <= ? AND " +
+                    " deleted != 1 AND ${CalendarContract.Events.ORGANIZER} like ? "
             val selectionArgs =
-                arrayOf(startTimestamp.toString(), endTimestamp.toString())
+                arrayOf(startTimestamp.toString(), endTimestamp.toString(), interestedInEmail)
             val cur: Cursor? =
-                contentResolver.query(uri, EVENT_PROJECTION, selection, null, null)
+                contentResolver.query(uri, EVENT_PROJECTION, selection, selectionArgs, null)
             Log.d(
                 this.localClassName,
                 "searched ($startTimestamp, $endTimestamp) ${cur?.count}"
@@ -159,6 +168,7 @@ class MainActivity : AppCompatActivity() {
 
                 addItem(calId, description, organiser, account)
             }
+            cur?.close()
         }
     }
 
@@ -174,11 +184,11 @@ class MainActivity : AppCompatActivity() {
         row.id = id
         row.addView(tv)
 
-//        if(account != organiser) {
+        if(account != organiser) {
             addButton(greenCircle, row, "positive")
             addButton(yellowCircle, row, "neutral")
             addButton(redCircle, row, "negative")
-//        }
+        }
 
         Cal_Table.addView(row)
     }
@@ -217,8 +227,8 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val htmlContent = String.format(EMAIL_FORMAT, feedback, feedbackColour)
-                if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_NETWORK_STATE) == PackageManager.PERMISSION_GRANTED
-                        && ContextCompat.checkSelfPermission(this, android.Manifest.permission.INTERNET) == PackageManager.PERMISSION_GRANTED) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_NETWORK_STATE) == PackageManager.PERMISSION_GRANTED
+                        && ContextCompat.checkSelfPermission(this, Manifest.permission.INTERNET) == PackageManager.PERMISSION_GRANTED) {
                     emailClient.sendEmail("Meeting Feedback - ${metaData?.description}", htmlContent, metaData?.organiser)
                 }
                 Cal_Table.removeView(row)
@@ -242,6 +252,7 @@ class MainActivity : AppCompatActivity() {
 
 }
 
+@SuppressLint("SimpleDateFormat")
 fun formatDate(milliSeconds: Long): String {
     // Create a DateFormatter object for displaying date in specified format.
     val formatter = SimpleDateFormat("dd/MM/yyyy hh:mm")
@@ -253,10 +264,10 @@ fun formatDate(milliSeconds: Long): String {
 }
 
 fun stripHtml(html:String): String {
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-        return Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY).toString()
+    return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+        Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY).toString()
     } else {
-        return Html.fromHtml(html).toString()
+        Html.fromHtml(html).toString()
     }
 }
 
