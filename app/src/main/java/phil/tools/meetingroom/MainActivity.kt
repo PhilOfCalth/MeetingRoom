@@ -28,6 +28,7 @@ import kotlinx.android.synthetic.main.activity_main.*
 import java.io.Serializable
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.collections.HashSet
 
 private const val CAL_STATE_KEY = "MeetingRoomCalendarState"
 private const val EMAIL_FORMAT =
@@ -60,9 +61,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var interestedInEmail:String
     private var tableMetaData = LinkedHashMap<Int, RowMetaData>()
     private lateinit var emailClient:GMailSender
-    private val rowLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, 150)
-    private val textLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, TableRow.LayoutParams.MATCH_PARENT)
-    private val buttonLp = TableRow.LayoutParams(100, 140)
+    private val rowLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, TableRow.LayoutParams.WRAP_CONTENT)
+    private val textLp = TableRow.LayoutParams(TableRow.LayoutParams.WRAP_CONTENT, TableRow.LayoutParams.WRAP_CONTENT)
+    private val buttonLp = TableRow.LayoutParams(100, 120)
 
     private lateinit var greenCircle:Drawable
     private lateinit var yellowCircle:Drawable
@@ -70,7 +71,7 @@ class MainActivity : AppCompatActivity() {
 
     init {
         rowLp.gravity = Gravity.CENTER_VERTICAL
-        textLp.setMargins(20, 20, 0, 0)
+        textLp.setMargins(20, 35, 0, 35)
         textLp.weight = 5f
         textLp.gravity = Gravity.CENTER_VERTICAL
         buttonLp.setMargins(15, 15, 15, 15)
@@ -141,15 +142,18 @@ class MainActivity : AppCompatActivity() {
 //                "(( " + CalendarContract.Events.DTSTART + " >= " + startTimestamp + " ) AND ( " + CalendarContract.Events.DTSTART + " <= " + endTimestamp + " ) AND ( deleted != 1 ))"
             val selection = "${CalendarContract.Events.DTSTART} >= ? AND " +
                     "${CalendarContract.Events.DTSTART} <= ? AND " +
-                    " deleted != 1 AND ${CalendarContract.Events.ORGANIZER} like ? "
+                    "${CalendarContract.Events.ORGANIZER} like ? AND " +
+                    " deleted != 1 AND  'declined' != ${CalendarContract.Events.SELF_ATTENDEE_STATUS}"
             val selectionArgs =
                 arrayOf(startTimestamp.toString(), endTimestamp.toString(), interestedInEmail)
             val cur: Cursor? =
-                contentResolver.query(uri, EVENT_PROJECTION, selection, selectionArgs, null)
+                contentResolver.query(uri, EVENT_PROJECTION, selection, selectionArgs, CalendarContract.Events.DTSTART)
             Log.d(
                 this.localClassName,
                 "searched ($startTimestamp, $endTimestamp) ${cur?.count}"
             )
+            val addedMeetings = HashSet<String>()
+
             while (true == cur?.moveToNext()) {
                 // Get the field values
                 val calId = cur.getInt(0)
@@ -164,9 +168,11 @@ class MainActivity : AppCompatActivity() {
                     "$displayName, calId:$calId, startDate:$startDate, ownerName:$ownerName, accountName: $account, organiser:$organiser"
 
                 val description = "$displayName\n ${formatDate(startDate)}"
-                tableMetaData.put(calId, RowMetaData(description, organiser, account))
-
-                addItem(calId, description, organiser, account)
+                if( ! addedMeetings.contains(description) ) {
+                    tableMetaData.put(calId, RowMetaData(description, organiser, account))
+                    addItem(calId, description, organiser, account)
+                    addedMeetings.add(description)
+                }
             }
             cur?.close()
         }

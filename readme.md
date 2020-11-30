@@ -26,4 +26,8 @@ interested_in_email=%@naimuri.com
 The requirement of the configuration file, means that deployment to the android device must be done
 manually.
 
-`WIP I hope to automate as much of this as possible with bash scripts`
+Follow this to set up your phone:
+https://www.techsupportofmn.com/how-to-use-your-computer-to-install-apps-on-your-android-device
+
+Installation can be done (on Mac and Linux) from the root directory of this project by running
+`/gradlew clean installDebug`
