@@ -6,9 +6,9 @@ It interacts with the calendar to find "meetings" (AKA events), and a gmail acco
 ## Current Functionality
 
 ### Meeting Feedback
-Give anonymous feedback on a meeting you attended. You may give feedback
-(Positive/Green, Neutral/Yellow or Negative/Red). The app will compose a basic email and send it
-using the configured gmail account.
+Give anonymous feedback on a meeting you attended. You may give a feedback rating
+(Positive/Green, Neutral/Yellow or Negative/Red) and a comment. The app will compose a basic email 
+and send it using the configured account.
 
 ## Configuration
 The app require a properties fine in `src/main/res/raw/config.properties` that sets up the email
